@@ -1,14 +1,12 @@
 const WebSocket = require('ws');
 
-// Render provides PORT via environment variable
-const PORT = process.env.PORT || 8080;
+// CRITICAL: Render provides PORT via environment variable
+// Must use this port, not hardcoded 8080
+const PORT = process.env.PORT || 10000;
 
 const wss = new WebSocket.Server({
     port: PORT,
-    // Add health check path for Render
-    verifyClient: (info) => {
-        return true; // Accept all connections
-    }
+    host: '0.0.0.0'  // IMPORTANT: Must bind to 0.0.0.0 for Render
 });
 
 console.log(`🚀 WebSocket server starting on port ${PORT}`);
@@ -41,21 +39,12 @@ wss.on('connection', (ws, req) => {
                 console.log('🔧 ESP32 Data:', parsed.sensordata);
             }
 
-            // Broadcast to all connected clients except sender
+            // Broadcast to all connected clients
             wss.clients.forEach((client) => {
-                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                if (client.readyState === WebSocket.OPEN) {
                     client.send(data);
                 }
             });
-
-            // Echo back to sender for confirmation
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'ack',
-                    message: 'Data received and broadcast',
-                    timestamp: Date.now()
-                }));
-            }
 
         } catch (error) {
             console.error('❌ Error processing message:', error);
@@ -72,7 +61,7 @@ wss.on('connection', (ws, req) => {
         console.error('⚠️ WebSocket error:', error);
     });
 
-    // Send ping every 30 seconds to keep connection alive
+    // Keep-alive ping
     const pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
             ws.ping();
@@ -84,10 +73,9 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// Health check endpoint for Render
 wss.on('listening', () => {
     console.log(`✅ WebSocket server is running on port ${PORT}`);
-    console.log(`🌐 Ready to accept connections`);
+    console.log(`🌐 Ready to accept connections on 0.0.0.0:${PORT}`);
 });
 
 // Graceful shutdown
